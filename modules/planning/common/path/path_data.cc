@@ -72,6 +72,16 @@ const DiscretizedPath &PathData::discretized_path() const {
   return discretized_path_;
 }
 
+bool PathData::IsEmpty() const {
+  return discretized_path_.NumOfPoints() == 0 &&
+         frenet_path_.NumOfPoints() == 0;
+}
+
+std::list<std::pair<DiscretizedPath, FrenetFramePath>>
+    &PathData::path_data_history() {
+  return path_data_history_;
+}
+
 const FrenetFramePath &PathData::frenet_frame_path() const {
   return frenet_path_;
 }
@@ -175,11 +185,14 @@ bool PathData::SLToXY(const FrenetFramePath &frenet_path,
 
     if (path_points.empty()) {
       path_point.set_s(0.0);
+      path_point.set_dkappa(0.0);
     } else {
       common::math::Vec2d last(path_points.back().x(), path_points.back().y());
       common::math::Vec2d current(path_point.x(), path_point.y());
       double distance = (last - current).Length();
       path_point.set_s(path_points.back().s() + distance);
+      path_point.set_dkappa((path_point.kappa() - path_points.back().kappa()) /
+                            distance);
     }
     path_points.push_back(std::move(path_point));
   }

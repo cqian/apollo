@@ -68,7 +68,8 @@ SimControl::SimControl(const MapService* map_service)
       re_routing_triggered_(false),
       enabled_(FLAGS_enable_sim_control) {}
 
-void SimControl::Init(bool set_start_point) {
+void SimControl::Init(bool set_start_point, double start_velocity,
+                      double start_acceleration) {
   // Setup planning and routing result data callback.
   AdapterManager::AddPlanningCallback(&SimControl::OnPlanning, this);
   AdapterManager::AddRoutingResponseCallback(&SimControl::OnRoutingResponse,
@@ -86,11 +87,14 @@ void SimControl::Init(bool set_start_point) {
     }
     SetStartPoint(start_point.x(), start_point.y());
   }
+
+  start_velocity_ = start_velocity;
+  start_acceleration_ = start_acceleration;
 }
 
 void SimControl::SetStartPoint(const double x, const double y) {
-  next_point_.set_v(0.0);
-  next_point_.set_a(0.0);
+  next_point_.set_v(start_velocity_);
+  next_point_.set_a(start_acceleration_);
 
   auto* next_point = next_point_.mutable_path_point();
   next_point->set_x(x);
@@ -140,9 +144,7 @@ void SimControl::Start() {
   }
 }
 
-void SimControl::Stop() {
-  sim_control_timer_.stop();
-}
+void SimControl::Stop() { sim_control_timer_.stop(); }
 
 void SimControl::OnPlanning(const apollo::planning::ADCTrajectory& trajectory) {
   // Reset current trajectory and the indices upon receiving a new trajectory.
@@ -180,14 +182,12 @@ bool SimControl::NextPointWithinRange() {
   return next_point_index_ < current_trajectory_.trajectory_point_size() - 1;
 }
 
-void SimControl::TimerCallback(const ros::TimerEvent& event) {
-  RunOnce();
-}
+void SimControl::TimerCallback(const ros::TimerEvent& event) { RunOnce(); }
 
 void SimControl::RunOnce() {
   // Result of the interpolation.
-  double lambda = 0;
-  auto current_time = Clock::NowInSecond();
+  double lambda = 0.0;
+  auto current_time = Clock::NowInSeconds();
 
   if (!received_planning_) {
     prev_point_ = next_point_;
@@ -219,7 +219,7 @@ void SimControl::RunOnce() {
       next_point_ = current_trajectory_.trajectory_point(next_point_index_);
       prev_point_ = current_trajectory_.trajectory_point(prev_point_index_);
 
-      // Calculate the ratio based on the the position of current time in
+      // Calculate the ratio based on the position of current time in
       // between the previous point and the next point, where lambda =
       // (current_point - prev_point) / (next_point - prev_point).
       if (next_point_index_ != prev_point_index_) {

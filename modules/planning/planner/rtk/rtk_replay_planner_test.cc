@@ -19,7 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "modules/common/vehicle_state/vehicle_state.h"
+#include "modules/common/vehicle_state/vehicle_state_provider.h"
 #include "modules/localization/common/localization_gflags.h"
 #include "modules/planning/common/planning_gflags.h"
 
@@ -28,9 +28,7 @@ using apollo::common::TrajectoryPoint;
 namespace apollo {
 namespace planning {
 
-class RTKReplayPlannerTest : public ::testing::Test {};
-
-TEST_F(RTKReplayPlannerTest, ComputeTrajectory) {
+TEST(RTKReplayPlannerTest, ComputeTrajectory) {
   FLAGS_rtk_trajectory_filename = "modules/planning/testdata/garage.csv";
   FLAGS_enable_map_reference_unify = false;
   RTKReplayPlanner planner;
@@ -42,7 +40,7 @@ TEST_F(RTKReplayPlannerTest, ComputeTrajectory) {
   start_point.mutable_path_point()->set_x(586385.782842);
   start_point.mutable_path_point()->set_y(4140674.76063);
 
-  ReferenceLine reference_line;
+  ReferenceLine ref;
   hdmap::RouteSegments segments;
   localization::LocalizationEstimate localization;
   canbus::Chassis chassis;
@@ -54,8 +52,12 @@ TEST_F(RTKReplayPlannerTest, ComputeTrajectory) {
   localization.mutable_pose()->mutable_linear_acceleration()->set_x(0.0);
   localization.mutable_pose()->mutable_linear_acceleration()->set_y(0.0);
   localization.mutable_pose()->mutable_linear_acceleration()->set_z(0.0);
-  common::VehicleState::instance()->Update(localization, chassis);
-  ReferenceLineInfo info(nullptr, reference_line, segments, point, start_point);
+  common::VehicleStateProvider::instance()->Update(localization, chassis);
+  common::VehicleState state;
+  state.set_x(point.x());
+  state.set_y(point.y());
+  state.set_z(point.z());
+  ReferenceLineInfo info(state, start_point, ref, segments);
   auto status = planner.Plan(start_point, nullptr, &info);
 
   const auto& trajectory = info.trajectory();
@@ -73,7 +75,7 @@ TEST_F(RTKReplayPlannerTest, ComputeTrajectory) {
   EXPECT_DOUBLE_EQ(last_point->path_point().y(), 4140681.98605);
 }
 
-TEST_F(RTKReplayPlannerTest, ErrorTest) {
+TEST(RTKReplayPlannerTest, ErrorTest) {
   FLAGS_rtk_trajectory_filename =
       "modules/planning/testdata/garage_no_file.csv";
   FLAGS_enable_map_reference_unify = false;
@@ -96,10 +98,14 @@ TEST_F(RTKReplayPlannerTest, ErrorTest) {
   localization.mutable_pose()->mutable_linear_acceleration()->set_x(0.0);
   localization.mutable_pose()->mutable_linear_acceleration()->set_y(0.0);
   localization.mutable_pose()->mutable_linear_acceleration()->set_z(0.0);
-  common::VehicleState::instance()->Update(localization, chassis);
+  common::VehicleStateProvider::instance()->Update(localization, chassis);
   ReferenceLine ref;
   hdmap::RouteSegments segments;
-  ReferenceLineInfo info(nullptr, ref, segments, point, start_point);
+  common::VehicleState state;
+  state.set_x(point.x());
+  state.set_y(point.y());
+  state.set_z(point.z());
+  ReferenceLineInfo info(state, start_point, ref, segments);
   EXPECT_TRUE(!(planner_with_error_csv.Plan(start_point, nullptr, &info)).ok());
 }
 
